@@ -1,5 +1,4 @@
 build/
-*.deb
 temp.tar.zst
 .DS_Store
 private.key
