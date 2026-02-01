@@ -1,0 +1,45 @@
+name: Update APT Repo
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Runs daily at 8:00 UTC
+  workflow_dispatch:      # Allows manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        
+      # Checkout gh-pages to preserve existing DEBs
+      - uses: actions/checkout@v3
+        with:
+          ref: gh-pages
+          path: public_repo
+        continue-on-error: true
+
+      - name: Install Dependencies
+        run: sudo apt-get install -y dpkg-dev zstd apt-utils
+
+      - name: Prepare Workspace
+        run: |
+          if [ -d "public_repo" ]; then
+            mv public_repo/* . 2>/dev/null || true
+            rm -rf public_repo
+          fi
+
+      - name: Run Build Script
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: bash build_and_publish.sh
+
+      - name: Deploy to GitHub Pages
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "Update repository"
+          branch: gh-pages
+          create_branch: true
+          file_pattern: 'pool Packages* Release* InRelease public.key'
