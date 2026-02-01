@@ -10,22 +10,23 @@ EMAIL="kingsleyleung2003@outlook.com"
 GITHUB_USER="KingsleyLeung03"
 # ---------------------
 
-echo "Checking for latest release of $REPO_OWNER/$REPO_NAME..."
+echo "Fetching release info for $REPO_OWNER/$REPO_NAME..."
 
-# 1. Fetch latest version tag
-LATEST_TAG_RAW=$(curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest" | grep "tag_name" | cut -d '"' -f 4)
+# [FIX] 1. Fetch full JSON data
+RELEASE_JSON=$(curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest")
+
+# [FIX] 2. Parse tag using jq
+LATEST_TAG_RAW=$(echo "$RELEASE_JSON" | jq -r .tag_name)
 VERSION=${LATEST_TAG_RAW#v}
 
-if [ -z "$VERSION" ]; then
+if [ -z "$VERSION" ] || [ "$VERSION" == "null" ]; then
     echo "Error: Could not fetch version."
     exit 1
 fi
 echo "Latest version is: $VERSION"
 
-# 2. Define Architectures (UpstreamName:DebianName)
 ARCHS=("x86_64:amd64" "aarch64:arm64")
 
-# 3. Process each architecture
 for PAIR in "${ARCHS[@]}"; do
     UPSTREAM_ARCH="${PAIR%%:*}"
     DEB_ARCH="${PAIR##*:}"
@@ -45,17 +46,27 @@ for PAIR in "${ARCHS[@]}"; do
         continue
     fi
 
-    # Download Binary
-    DOWNLOAD_URL="https://github.com/$REPO_OWNER/$REPO_NAME/releases/download/${LATEST_TAG_RAW}/edit-${VERSION}-${UPSTREAM_ARCH}-linux-gnu.tar.zst"
+    # [FIX] 3. Dynamic URL Discovery
+    # We ask jq to find the asset URL that matches our architecture string
+    DOWNLOAD_URL=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name | contains(\"${UPSTREAM_ARCH}-linux-gnu.tar.zst\")) | .browser_download_url")
+
+    if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
+        echo "Warning: No matching asset found for $UPSTREAM_ARCH. Skipping."
+        rm -rf "$BUILD_DIR"
+        continue
+    fi
+
+    echo "Downloading from $DOWNLOAD_URL..."
     
     if curl -f -L -o temp.tar.zst "$DOWNLOAD_URL"; then
-        # Extract Binary
+        
+        # Extract and Rename
         tar -I zstd -xvf temp.tar.zst --strip-components=1 -C "$BUILD_DIR/usr/bin/"
         mv "$BUILD_DIR/usr/bin/edit" "$BUILD_DIR/usr/bin/$PACKAGE_NAME"
         chmod +x "$BUILD_DIR/usr/bin/$PACKAGE_NAME"
         rm temp.tar.zst
 
-        # Embed Repo Config (Bootstrapping)
+        # Embed Repo Config
         if [ -f "public.key" ]; then
             cp public.key "$BUILD_DIR/usr/share/keyrings/msedit-archive-keyring.gpg"
             chmod 644 "$BUILD_DIR/usr/share/keyrings/msedit-archive-keyring.gpg"
@@ -78,15 +89,15 @@ Description: Microsoft Edit (Unofficial Auto-Build)
  This package automatically configures the APT repository for updates.
 EOF
 
-        # Build Deb
         dpkg-deb --build "$BUILD_DIR" "$DEB_PATH"
         rm -rf "$BUILD_DIR"
     else
-        echo "Warning: Download failed for $UPSTREAM_ARCH."
+        echo "Download failed."
     fi
 done
 
-# 4. Generate Repo Metadata
+# --- REPO METADATA & SIGNING ---
+
 if [ -z "$GPG_PRIVATE_KEY" ]; then
     echo "Error: GPG_PRIVATE_KEY secret is missing!"
     exit 1
@@ -108,7 +119,11 @@ Date: $(date -R)
 EOF
 apt-ftparchive release . >> Release
 
-# 5. Sign Release
+# Clean previous signatures
 rm -f Release.gpg InRelease
-gpg --batch --yes --armor --detach-sign --output Release.gpg Release
-gpg --batch --yes --clearsign --output InRelease Release
+
+# Sign (using loopback mode to be safe in CI environments)
+gpg --batch --yes --pinentry-mode loopback --armor --detach-sign --output Release.gpg Release
+gpg --batch --yes --pinentry-mode loopback --clearsign --output InRelease Release
+
+echo "Update complete."

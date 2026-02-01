@@ -21,8 +21,9 @@ jobs:
           path: public_repo
         continue-on-error: true
 
+      # [FIX] Added 'jq' here
       - name: Install Dependencies
-        run: sudo apt-get install -y dpkg-dev zstd apt-utils
+        run: sudo apt-get install -y dpkg-dev zstd apt-utils jq
 
       - name: Prepare Workspace
         run: |
