@@ -12,10 +12,7 @@ GITHUB_USER="KingsleyLeung03"
 
 echo "Fetching release info for $REPO_OWNER/$REPO_NAME..."
 
-# [FIX] 1. Fetch full JSON data
 RELEASE_JSON=$(curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest")
-
-# [FIX] 2. Parse tag using jq
 LATEST_TAG_RAW=$(echo "$RELEASE_JSON" | jq -r .tag_name)
 VERSION=${LATEST_TAG_RAW#v}
 
@@ -34,25 +31,30 @@ for PAIR in "${ARCHS[@]}"; do
     echo "--- Processing $DEB_ARCH ($UPSTREAM_ARCH) ---"
 
     BUILD_DIR="build/${PACKAGE_NAME}_${DEB_ARCH}"
+    TEMP_EXTRACT="build/temp_${DEB_ARCH}" # Temp folder for safe extraction
+
+    # Clean previous runs
+    rm -rf "$BUILD_DIR" "$TEMP_EXTRACT"
+
     mkdir -p "$BUILD_DIR/DEBIAN" "$BUILD_DIR/usr/bin" "$BUILD_DIR/usr/share/keyrings" "$BUILD_DIR/etc/apt/sources.list.d"
     mkdir -p "pool/main/m/$PACKAGE_NAME"
+    mkdir -p "$TEMP_EXTRACT"
 
     DEB_FILENAME="${PACKAGE_NAME}_${VERSION}_${DEB_ARCH}.deb"
     DEB_PATH="pool/main/m/$PACKAGE_NAME/$DEB_FILENAME"
 
     if [ -f "$DEB_PATH" ]; then
         echo "Package $DEB_FILENAME already exists. Skipping."
-        rm -rf "$BUILD_DIR"
+        rm -rf "$BUILD_DIR" "$TEMP_EXTRACT"
         continue
     fi
 
-    # [FIX] 3. Dynamic URL Discovery
-    # We ask jq to find the asset URL that matches our architecture string
+    # Dynamic URL Discovery
     DOWNLOAD_URL=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name | contains(\"${UPSTREAM_ARCH}-linux-gnu.tar.zst\")) | .browser_download_url")
 
     if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
         echo "Warning: No matching asset found for $UPSTREAM_ARCH. Skipping."
-        rm -rf "$BUILD_DIR"
+        rm -rf "$BUILD_DIR" "$TEMP_EXTRACT"
         continue
     fi
 
@@ -60,11 +62,25 @@ for PAIR in "${ARCHS[@]}"; do
     
     if curl -f -L -o temp.tar.zst "$DOWNLOAD_URL"; then
         
-        # Extract and Rename
-        tar -I zstd -xvf temp.tar.zst --strip-components=1 -C "$BUILD_DIR/usr/bin/"
-        mv "$BUILD_DIR/usr/bin/edit" "$BUILD_DIR/usr/bin/$PACKAGE_NAME"
+        # [FIX] Robust Extraction: 
+        # 1. Extract to temp folder (no strip)
+        tar -I zstd -xvf temp.tar.zst -C "$TEMP_EXTRACT"
+        
+        # 2. Find the binary named 'edit' anywhere inside
+        FOUND_BIN=$(find "$TEMP_EXTRACT" -type f -name "edit" | head -n 1)
+
+        if [ -z "$FOUND_BIN" ]; then
+            echo "Error: Could not find 'edit' binary in the archive!"
+            exit 1
+        fi
+
+        # 3. Move it to the build dir
+        mv "$FOUND_BIN" "$BUILD_DIR/usr/bin/$PACKAGE_NAME"
         chmod +x "$BUILD_DIR/usr/bin/$PACKAGE_NAME"
+        
+        # Cleanup temp
         rm temp.tar.zst
+        rm -rf "$TEMP_EXTRACT"
 
         # Embed Repo Config
         if [ -f "public.key" ]; then
@@ -122,7 +138,7 @@ apt-ftparchive release . >> Release
 # Clean previous signatures
 rm -f Release.gpg InRelease
 
-# Sign (using loopback mode to be safe in CI environments)
+# Sign
 gpg --batch --yes --pinentry-mode loopback --armor --detach-sign --output Release.gpg Release
 gpg --batch --yes --pinentry-mode loopback --clearsign --output InRelease Release
 
