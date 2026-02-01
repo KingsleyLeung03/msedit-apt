@@ -23,6 +23,7 @@ fi
 echo "Latest version is: $VERSION"
 
 ARCHS=("x86_64:amd64" "aarch64:arm64")
+CHANGES_DETECTED="false"
 
 for PAIR in "${ARCHS[@]}"; do
     UPSTREAM_ARCH="${PAIR%%:*}"
@@ -107,12 +108,21 @@ EOF
 
         dpkg-deb --build "$BUILD_DIR" "$DEB_PATH"
         rm -rf "$BUILD_DIR"
+        
+        # Mark that we built something
+        CHANGES_DETECTED="true"
     else
         echo "Download failed."
     fi
 done
 
 # --- REPO METADATA & SIGNING ---
+
+# Exit if no changes were made and repo already exists
+if [ "$CHANGES_DETECTED" != "true" ] && [ -f "Release" ]; then
+    echo "No new packages built and repository metadata exists. Skipping metadata update."
+    exit 0
+fi
 
 if [ -z "$GPG_PRIVATE_KEY" ]; then
     echo "Error: GPG_PRIVATE_KEY secret is missing!"
