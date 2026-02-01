@@ -85,7 +85,8 @@ for PAIR in "${ARCHS[@]}"; do
 
         # Embed Repo Config
         if [ -f "public.key" ]; then
-            cp public.key "$BUILD_DIR/usr/share/keyrings/msedit-archive-keyring.gpg"
+            # [FIX] Dearmor the key because APT expects binary for .gpg
+            gpg --dearmor --yes -o "$BUILD_DIR/usr/share/keyrings/msedit-archive-keyring.gpg" public.key
             chmod 644 "$BUILD_DIR/usr/share/keyrings/msedit-archive-keyring.gpg"
             echo "deb [signed-by=/usr/share/keyrings/msedit-archive-keyring.gpg] https://$GITHUB_USER.github.io/msedit-apt ./" > "$BUILD_DIR/etc/apt/sources.list.d/msedit.list"
             chmod 644 "$BUILD_DIR/etc/apt/sources.list.d/msedit.list"
