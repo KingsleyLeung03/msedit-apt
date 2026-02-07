@@ -1,0 +1,25 @@
+Origin: MsEdit Unofficial
+Label: MsEdit
+Suite: stable
+Codename: stable
+Architectures: amd64 arm64
+Components: main
+Description: Unofficial repository for Microsoft Edit
+Date: Sat, 07 Feb 2026 23:16:51 +0000
+Date: Sat, 07 Feb 2026 23:16:51 +0000
+MD5Sum:
+ 5bb37a9faf417c3b8b779e8a45116db7             1140 Packages
+ 496bd54307d19d3cbad61125425d29c2              552 Packages.gz
+ 498c5ac8e15086edb5fe7f159e1f4ce5              245 Release
+SHA1:
+ 54f6329cd5d0afc88e2644d48edf7900226d282f             1140 Packages
+ e50868b1d9c8316f29dfdc00292fc2105d69d61f              552 Packages.gz
+ 2da0d10302c0f7ff14682283082cadd2ad6cb40c              245 Release
+SHA256:
+ 54094aa269ac3431fc23284df22bf2682dff5148af9a36171e37b10f68eea460             1140 Packages
+ b108ae722fa3538083d9dce2213ea5188759fe4fa739164c0daa554e1013ed86              552 Packages.gz
+ 99eb25f3bd95be1975b370ea03ee873fe9ba22cc37606208284d580f4f44c474              245 Release
+SHA512:
+ b0af5b0c6f1e26a74455d18b229e4b870ccbc642aabc2ab625f536f56e8f21cb9fa3c1d0f28d831c4a50fb6ee3ccb8f781d16f095c1f029c847b0c55021562d7             1140 Packages
+ da024e9488eb701d8f4fe25419a5fbb134dc5688c1986d4a44bac5c2749ff57ac275e62a82f0ab7216a5e06d271f298fa06835d62e9fb2ec3f27c526b52f8490              552 Packages.gz
+ 91643fdf6f31bfc29ccf132bef34119267b4addc03b9d46046884d58b4af1de96aa0ec9b86d429e918645661e59132f1022ff8b62df0f6045b2f9e4295b76d89              245 Release
